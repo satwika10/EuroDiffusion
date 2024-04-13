@@ -1,0 +1,340 @@
+class Algorithm(object):
+    def __init__(self):
+        self.countries = []
+
+    # pases country from string and adds this country
+    def add_country(self, string):
+        name, *coordinates = string.split()
+        # translate into integer value and
+        # add a new coordinate system relative to the point (0;0)
+        xl, yl, xh, yh = map(lambda p: int(p) - 1, coordinates)
+        self.countries.append(Country(name, xl, yl, xh, yh))
+
+    # creates an empty area where cities are located depending on the position of countries
+    def create_empty_area(self):
+        # all x coordinates
+        xs = []
+        # all y coordinates
+        ys = []
+
+        # fills xs and ys lists
+        for country in self.countries:
+            xs.extend((country.xl, country.xh))
+            ys.extend((country.yl, country.yh))
+
+        # finds the extreme x coordinates
+        min_x = min(xs)
+        max_x = max(xs)
+
+        # finds the extreme y coordinates
+        min_y = min(ys)
+        max_y = max(ys)
+
+        # builds a rectangular area
+        y_range = range(max_y - min_y + 1)
+        x_range = range(max_x - min_x + 1)
+        return [[None for _ in y_range] for _ in x_range]
+
+    # creates cities
+    def create_cities(self, area):
+        country_count = len(self.countries)
+        country_index = 0
+
+        for country in self.countries:
+            for i in range(country.xh - country.xl + 1):
+                for j in range(country.yh - country.yl + 1):
+                    x = country.xl + i
+                    y = country.yl + j
+
+                    city = City(country_count, country_index)  # coin sharing information
+
+                    area[x][y] = city
+                    country.add_city(city)
+
+            country_index += 1
+
+    # adds neighbors
+    def add_neighbors(self, area):
+        w = len(area)
+        h = len(area[0])
+
+        for x in range(w):
+            for y in range(h):
+                city = area[x][y]
+
+                if city:
+                    neighbors = []
+
+                    # checks for neighbors and adds them to the neighbors list
+
+                    # east neighbor
+                    if x + 1 <= w - 1 and area[x + 1][y]:
+                        neighbors.append(area[x + 1][y])
+
+                    # west neighbor
+                    if x - 1 >= 0 and area[x - 1][y]:
+                        neighbors.append(area[x - 1][y])
+
+                    # north neighbor
+                    if y + 1 <= h - 1 and area[x][y + 1]:
+                        neighbors.append(area[x][y + 1])
+
+                    # south neighbor
+                    if y - 1 >= 0 and area[x][y - 1]:
+                        neighbors.append(area[x][y - 1])
+
+                    city.neighbors = neighbors
+
+    # initializes cities and their neighbors
+    def init(self):
+        # creates an empty cities area
+        area = self.create_empty_area()
+
+        # creates cities
+        self.create_cities(area)
+
+        # adds neighbors
+        self.add_neighbors(area)
+
+    # checks the completion of all countries
+    def is_completed(self):
+        return all(map(lambda x: x.is_completed(), self.countries))
+
+    # runs the algorithm
+    def run(self):
+        # initializes cities
+        self.init()
+
+        result = {}
+        days = 0
+
+        # main part of the algorithm
+        while True:
+            # cities share coins with their neighbors
+            for country in self.countries:
+                for city in country.cities:
+                    city.share_with_neighbors()
+
+                # if the country is completed,it is saved in the results
+                if country.is_completed():
+                    if country.name not in result:
+                        result[country.name] = days
+
+            # if all countries are completed,
+            # the algorithm ends
+            if self.is_completed():
+                break
+
+            # at the end of the day,
+            # cities update their coin stock
+            for country in self.countries:
+                for city in country.cities:
+                    city.update()
+
+            days += 1
+
+        # sorts the result of the algorithm
+        return sorted(result.items(), key=lambda x: (x[1], x[0]))
+
+
+
+
+
+class City(object):
+    INITIAL_COIN_COUNT = 1000000
+    REPRESENTATIVE_PORTION = 1000
+
+    def __init__(self, country_count, country_index):
+        self.completed = False
+        self.neighbors = None
+        self.country_count = country_count
+
+        self.coins = [0] * country_count
+        self.cache = [0] * country_count
+
+        self.coins[country_index] = self.INITIAL_COIN_COUNT
+
+    # shares coins with neighbors
+    def share_with_neighbors(self):
+
+        # city completion check
+        if all(map(lambda c: c > 0, self.coins)):
+            self.completed = True
+
+        index = 0
+
+        for coin_count in self.coins:
+            if coin_count >= self.REPRESENTATIVE_PORTION:
+                share = coin_count // self.REPRESENTATIVE_PORTION
+
+                for city in self.neighbors:
+                    city.cache[index] += share
+                    self.coins[index] -= share
+
+            index += 1
+
+    # updates coins daily
+    def update(self):
+        for i in range(self.country_count):
+            self.coins[i] += self.cache[i]
+            self.cache[i] = 0
+
+
+
+
+
+class Country(object):
+    def __init__(self, name, xl, yl, xh, yh):
+        self.cities = []
+        self.name = name
+        self.xl = xl
+        self.yl = yl
+        self.xh = xh
+        self.yh = yh
+
+    # adds a new city
+    def add_city(self, city):
+        self.cities.append(city)
+
+    # checks the completion of the country
+    def is_completed(self):
+        return all(map(lambda c: c.completed, self.cities))
+from algorithm import Algorithm
+def print_result(i, result):
+    print('\nCase Number {}'.format(i))
+    for r in result:
+        print(r[0], r[1])
+def main():
+    file = open('file.txt', 'r')
+    case_number = 1
+    country_count = int(file.readline())
+    while country_count:
+        algorithm = Algorithm()
+        for i in range(country_count):
+            algorithm.add_country(file.readline())
+        print_result(case_number, algorithm.run())
+        case_number += 1
+        country_count = int(file.readline())
+if __name__ == '__main__':
+    main()
+
+
+
+
+
+from tkinter import *
+import tkinter as tk
+import pygame
+from tkinter import filedialog
+from PIL import ImageTk, Image
+pygame.mixer.init()
+
+BACKGROUND_IMAGE1=r"C:\Users\91824\OneDrive\Pictures\Screenshots\Screenshot (9).png"
+BACKGROUND_IMAGE2=r"C:\Users\91824\OneDrive\Pictures\Screenshots\Screenshot (11).png"
+
+
+def print_result(i, result):
+    output_text.insert(END, f'\nCase Number {i}\n')
+    for r in result:
+        output_text.insert(END, f'{r[0]} {r[1]}\n')
+
+def process_input():
+    pygame.mixer.music.load("button-3.mp3")
+    pygame.mixer.music.play(loops=0)
+    # Clear the output text widget
+    output_text.delete("1.0", END)
+
+    # Get the input text from the input text widget
+    input_text = input_text_widget.get("1.0", END)
+
+    # Split the input text into lines
+    lines = input_text.strip().split("\n")
+
+    # Pass the input and run the algorithm for each case
+    case_number = 1
+    i = 0
+    while i < len(lines):
+        country_count = int(lines[i])
+        algorithm = Algorithm()
+        i += 1
+        for j in range(i, i + country_count):
+            algorithm.add_country(lines[j])
+        i += country_count
+        result = algorithm.run()
+        print_result(case_number, result)
+        case_number += 1
+        
+def open_main_window():
+    pygame.mixer.music.load("button-3.mp3")
+    pygame.mixer.music.play(loops=0)
+    # Create the input window
+    root = Toplevel()
+    root.title("INPUT")
+    root.geometry("800x500")
+    def clear_input():
+        pygame.mixer.music.load("button-3.mp3")
+        pygame.mixer.music.play(loops=0)
+        input_text_widget.delete("1.0", END)
+        output_text.delete("1.0",END)
+    
+    # Load the image file
+    bg = ImageTk.PhotoImage(file=BACKGROUND_IMAGE2)
+
+    # Create the canvas with the same size as the image
+    canvas1 = tk.Canvas(root, width=bg.width(), height=bg.height())
+    canvas1.pack(fill="both", expand=True)
+    # Display the image on the canvas
+    canvas1.create_image(0, 0, anchor="nw", image=bg)
+    
+    global input_text_widget
+    input_text_widget = tk.Text(canvas1, width=30, height=10)
+    input_text_widget.pack(side="left", padx=200, pady=40)
+    
+    global output_text
+    output_text = tk.Text(canvas1, width=30, height=10)
+    output_text.pack(side="right", padx=200, pady=40)
+
+    
+    
+    # Create a button to process the input
+    process_button = Button(canvas1, text="Execute",bg = "pink" ,font=("Arial", 20),command = process_input)
+    process_button.pack(side=RIGHT)
+
+    # Create a button to clear the input
+    clear_button = tk.Button(canvas1, text="Clear", bg="pink", font=("Arial", 20), command=clear_input)
+    clear_button.pack(side=LEFT, pady=20)
+    
+    root.mainloop()
+# Create the main window
+input_window = Tk()
+input_window.title("EURO DIFFUSION")
+input_window.geometry("800x500")
+
+# Load the image file
+bg = ImageTk.PhotoImage(file=BACKGROUND_IMAGE1)
+# Get the width and height of the image
+image_width = bg.width()
+image_height = bg.height()
+# Create the canvas with the same size as the image
+canvas1 = Canvas(input_window, width=image_width//200, height=image_height//50)
+canvas1.pack(fill="both", expand=True)
+# Display the image on the canvas
+canvas1.create_image(-50, -50, anchor=NW, image=bg)
+
+# Create a frame for the buttons
+button_frame = Frame(input_window)
+button_frame.pack(padx = 10)
+def exit_function():
+    pygame.mixer.music.load("button-3.mp3")
+    pygame.mixer.music.play(loops=0)
+    input_window.destroy()
+
+    # Create a button to enter the program
+enter_button = Button(button_frame, text="Enter", font=("Arial", 20), bg="gold",command = open_main_window)
+enter_button.pack(side=LEFT, padx=50)
+
+    # Create a button to exit the program
+exit_button = Button(button_frame, text="Exit",font=("Arial", 20), bg="gold", command=exit_function)
+exit_button.pack(side=RIGHT,pady=10)
+
+input_window.mainloop()
